@@ -1,3 +1,4 @@
+import { Usuario } from './../models/usuario.model';
 import { Injectable, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { tap, map, catchError } from 'rxjs/operators';
@@ -8,7 +9,7 @@ import { environment } from './../../environments/environment';
 
 import { RegisterForm } from './../interface/register-form.interface';
 import { LoginForm } from './../interface/login-form.interface';
-
+import { EmailValidator } from '@angular/forms';
 
 const base_url = environment.base_url;
 declare const gapi: any;
@@ -19,6 +20,7 @@ declare const gapi: any;
 export class UsuarioService {
 
   public auth2: any;
+  public usuario: Usuario;
 
   constructor(private http: HttpClient,
     private router: Router,
@@ -28,19 +30,47 @@ export class UsuarioService {
 
   }
 
-  validarToken(): Observable<boolean> {
+  get token(): string {
+    return localStorage.getItem('token') || '';
+  }
 
-    const token = localStorage.getItem('token') || '';
+  get uid() {
+    return this.usuario.uid || '';
+  }
+
+  validarToken(): Observable<boolean> {
 
     return this.http.get(`${base_url}/login/renew`, {
       headers: {
-        'x-token': token
+        'x-token': this.token
       }
     }).pipe(
-      tap((resp: any) => {
+      map( (resp: any) => {
+
+        const {
+          email,
+          google,
+          nombre,
+          role,
+          img = '',
+          uid
+        } = resp.usuario;
+
+        this.usuario = new Usuario(
+          nombre,
+          email,
+          '',
+          img,
+          google,
+          role,
+          uid
+        );
+
         localStorage.setItem('token', resp.token);
+
+        return true;
+
       }),
-      map(resp => true),
       catchError(error => of(false))
     );
 
@@ -54,6 +84,21 @@ export class UsuarioService {
           localStorage.setItem('token', resp.token);
         })
       );
+
+  }
+
+  actualizarPerfil( data: { email: string, nombre: string, role: string } ) {
+
+    data = {
+      ...data,
+      role: this.usuario.role
+    }
+
+    return this.http.put(`${base_url}/usuarios/${ this.uid }`, data, {
+      headers: {
+        'x-token': this.token
+      }
+    });
 
   }
 
@@ -107,8 +152,6 @@ export class UsuarioService {
       });
 
     });
-
-
 
   }
 
